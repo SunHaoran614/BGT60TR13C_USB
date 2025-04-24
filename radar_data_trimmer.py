@@ -246,6 +246,11 @@ def main():
             trim_end_time,
             args.frame_count
         )
+        # 获取实际的起始帧索引，用于后续计算时间范围
+        start_frame = 0
+        if trim_start_time >= record_start_time:
+            time_diff = (trim_start_time - record_start_time).total_seconds()
+            start_frame = int(time_diff * args.frame_rate)
     else:
         # 基于帧索引裁剪
         if args.frame_count and args.end_frame == -1:
@@ -270,10 +275,18 @@ def main():
 
     # 打印时间范围信息
     if args.time_based and record_start_time:
-        start_frame_time = calculate_frame_time(record_start_time, args.frame_rate, 0)
-        last_frame_time = calculate_frame_time(record_start_time, args.frame_rate, trimmed_data.shape[0]-1)
-        print(f"裁剪后数据的时间范围: {start_frame_time} 到 {last_frame_time}")
-        print(f"总时长: {(last_frame_time - start_frame_time).total_seconds()} 秒")
+        # 裁剪后数据的第一帧实际上是原始数据的第start_frame帧
+        # 因此需要从record_start_time加上start_frame对应的时间偏移
+        first_frame_offset = start_frame  # 使用上面重新计算的start_frame值
+        
+        # 计算裁剪后数据的实际开始时间
+        trimmed_start_time = calculate_frame_time(record_start_time, args.frame_rate, first_frame_offset)
+        
+        # 计算裁剪后数据的实际结束时间
+        trimmed_end_time = calculate_frame_time(record_start_time, args.frame_rate, first_frame_offset + trimmed_data.shape[0] - 1)
+        
+        print(f"裁剪后数据的时间范围: {trimmed_start_time} 到 {trimmed_end_time}")
+        print(f"总时长: {(trimmed_end_time - trimmed_start_time).total_seconds()} 秒")
 
 if __name__ == "__main__":
     main() 

@@ -4,7 +4,7 @@ import numpy as np
 import json
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QSlider, QFileDialog, 
-                            QLabel, QSpinBox, QComboBox, QGroupBox, QCheckBox)
+                            QLabel, QSpinBox, QComboBox, QGroupBox, QCheckBox, QDoubleSpinBox)
 from PyQt5.QtCore import Qt, QTimer
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -176,12 +176,22 @@ class RadarReplayApp(QMainWindow):
         self.window_combo.currentTextChanged.connect(self.update_plot)
         display_layout.addWidget(self.window_combo)
         
+        # 添加X轴范围设置
+        display_layout.addWidget(QLabel("X轴范围(m):"))
+        self.x_max_spinbox = QDoubleSpinBox()
+        self.x_max_spinbox.setRange(0.1, 30.0)  # 范围从0.1米到30米
+        self.x_max_spinbox.setValue(7.0)  # 默认值设置为7米
+        self.x_max_spinbox.setSingleStep(0.5)  # 步进值为0.5米
+        self.x_max_spinbox.setDecimals(1)  # 显示一位小数
+        self.x_max_spinbox.valueChanged.connect(self.update_plot)
+        display_layout.addWidget(self.x_max_spinbox)
+        
         # 添加Y轴上限设置
         display_layout.addWidget(QLabel("Y轴上限:"))
         self.y_max_spinbox = QSpinBox()
-        self.y_max_spinbox.setRange(10, 1000)
-        self.y_max_spinbox.setValue(150)
-        self.y_max_spinbox.setSingleStep(10)
+        self.y_max_spinbox.setRange(10, 10000)  # 将最大值从1000增加到10000
+        self.y_max_spinbox.setValue(500)  # 默认值调整为更合适的500
+        self.y_max_spinbox.setSingleStep(100)  # 步进值增加到100方便调整
         self.y_max_spinbox.valueChanged.connect(self.update_plot)
         display_layout.addWidget(self.y_max_spinbox)
         
@@ -332,16 +342,24 @@ class RadarReplayApp(QMainWindow):
         self.ax.set_ylabel('幅度 (Magnitude)')
         self.ax.grid(True)
         
-        # 获取用户设置的Y轴上限
+        # 获取用户设置的Y轴上限和X轴范围
         y_max = self.y_max_spinbox.value()
+        user_x_max = self.x_max_spinbox.value()
         
-        # 固定横纵坐标轴范围
-        self.ax.set_xlim(0, self.radar_params['max_range'])  # X轴范围为0到最大距离(1.7m)
+        # 计算实际可见距离范围（基于用户设置和实际计算出的最大距离）
+        max_calculated_range = np.max(range_axis)  # 基于FFT点数和距离分辨率计算出的最大距离
+        
+        # 使用用户设置的X轴范围
+        self.ax.set_xlim(0, user_x_max)  # X轴范围为0到用户设置的最大距离
         self.ax.set_ylim(0, y_max)  # Y轴使用用户设置的上限值
         
-        # 添加文本注释显示最大距离值（始终显示）
+        # 添加文本注释显示理论最大距离和实际计算距离
         max_range = self.radar_params['max_range']
-        self.ax.text(0.98, 0.95, f'最大距离: {max_range:.2f} m',
+        range_resolution = self.radar_params['range_resolution']
+        self.ax.text(0.98, 0.95, 
+                 f'理论最大距离: {max_range:.2f} m\n'
+                 f'计算最大距离: {max_calculated_range:.2f} m\n'
+                 f'距离分辨率: {range_resolution:.3f} m',
                  transform=self.ax.transAxes, ha='right', va='top',
                  bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
         
@@ -378,9 +396,18 @@ class RadarReplayApp(QMainWindow):
     
     def calculate_range_axis(self, num_bins):
         """计算距离轴"""
-        # 使用理论最大不模糊距离直接线性划分
-        max_range = self.radar_params['max_range']  # 1.7米
-        range_axis = np.linspace(0, max_range, num_bins)
+        # 使用正确的雷达理论公式计算距离轴
+        # 距离轴 = 频率索引 * 距离分辨率
+        # 或者: 距离 = (频率索引 * 采样率) / (2 * FFT长度 * 调频斜率)
+        
+        # 获取雷达参数
+        range_resolution = self.radar_params['range_resolution']  # 距离分辨率 = c/(2*带宽)
+        samples = self.radar_params['num_samples']  # FFT大小
+        
+        # 计算实际距离轴（频率索引 * 距离分辨率）
+        # 只使用前半部分FFT对应有效距离
+        range_axis = np.arange(num_bins) * range_resolution
+        
         return range_axis
 
 def main():

@@ -52,11 +52,10 @@ def test_range_fft(radar_data, output_dir, radar_params):
     # 计算距离轴（米）
     range_resolution = radar_params['range_resolution']
     samples = radar_params['num_samples']
-    max_range = radar_params['max_range']  # 使用固定的1.7m
     
-    # 计算距离轴 - 使用固定的1.7m作为最大不模糊距离
+    # 计算距离轴 - 使用正确的距离计算公式：距离 = 索引 * 距离分辨率
     half_len = samples // 2
-    range_axis = np.linspace(0, max_range, half_len)
+    range_axis = np.arange(half_len) * range_resolution
     
     print(f"距离轴: 最小={range_axis[0]:.3f}m, 最大={range_axis[-1]:.3f}m")
     
@@ -77,14 +76,14 @@ def test_range_fft(radar_data, output_dir, radar_params):
         plt.grid(True)
         
         # 设置X轴范围
-        plt.xlim(0, max_range)
+        plt.xlim(0, range_axis[-1])
         
         # 添加垂直线标记距离分辨率
         plt.axvline(x=range_resolution, color='r', linestyle='--', 
                   label=f'Range Resolution: {range_resolution:.3f} m')
         
         # 添加文本注释显示最大距离值
-        plt.text(0.98, 0.95, f'Max Range: {max_range:.2f} m',
+        plt.text(0.98, 0.95, f'Max Range: {range_axis[-1]:.2f} m',
                 transform=plt.gca().transAxes, ha='right', va='top',
                 bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
         
@@ -116,12 +115,13 @@ def test_doppler_fft(range_fft_data, output_dir, radar_params):
     # 提取单一天线的距离-多普勒图
     rd_map = doppler_fft_data[0, 0]
     
-    # 使用固定的最大距离值
-    max_range = radar_params['max_range']  # 1.7m
+    # 获取雷达参数
+    range_resolution = radar_params['range_resolution']
     
-    # 计算距离轴
+    # 计算距离轴 - 使用正确的计算方法
     num_range_bins = rd_map.shape[1]
-    range_axis = np.linspace(0, max_range, num_range_bins)
+    half_len = num_range_bins // 2  # 只取前半部分有效距离
+    range_axis = np.arange(half_len) * range_resolution
     
     # 计算速度轴（米/秒）
     num_doppler_bins = rd_map.shape[0]
@@ -137,7 +137,7 @@ def test_doppler_fft(range_fft_data, output_dir, radar_params):
     rd_map_shifted = np.fft.fftshift(rd_map_db, axes=0)
     
     plt.imshow(rd_map_shifted, aspect='auto', cmap='jet',
-               extent=[0, max_range,  # 使用固定的1.7m
+               extent=[0, range_axis[-1],  # 使用正确的距离轴
                       -radar_params['max_velocity'], 
                       radar_params['max_velocity']])
     plt.colorbar(label='Power (dB)')
@@ -151,11 +151,11 @@ def test_doppler_fft(range_fft_data, output_dir, radar_params):
                label=f'Velocity Resolution: ±{radar_params["velocity_resolution"]:.3f} m/s')
     
     # 添加垂直线标记距离分辨率
-    plt.axvline(x=radar_params['range_resolution'], color='g', linestyle='--',
-               label=f'Range Resolution: {radar_params["range_resolution"]:.3f} m')
+    plt.axvline(x=range_resolution, color='g', linestyle='--',
+               label=f'Range Resolution: {range_resolution:.3f} m')
     
     # 添加文本注释显示最大距离
-    plt.text(0.98, 0.95, f'Max Range: {max_range:.2f} m',
+    plt.text(0.98, 0.95, f'Max Range: {range_axis[-1]:.2f} m',
             transform=plt.gca().transAxes, ha='right', va='top',
             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
@@ -226,12 +226,13 @@ def test_cfar_detector(doppler_fft_data, output_dir, radar_params):
     # 获取单一帧单一天线的距离-多普勒图
     rd_map = np.abs(doppler_fft_data[0, 0])
     
-    # 使用固定的最大距离
-    max_range = radar_params['max_range']  # 1.7m
+    # 获取雷达参数
+    range_resolution = radar_params['range_resolution']
     
-    # 计算距离轴
+    # 计算距离轴 - 使用正确的计算方法
     num_range_bins = rd_map.shape[1]
-    range_axis = np.linspace(0, max_range, num_range_bins)
+    half_len = num_range_bins // 2  # 只取前半部分有效距离
+    range_axis = np.arange(half_len) * range_resolution
     
     # 计算速度轴（米/秒）
     num_doppler_bins = rd_map.shape[0]
@@ -249,7 +250,7 @@ def test_cfar_detector(doppler_fft_data, output_dir, radar_params):
     rd_map_shifted = np.fft.fftshift(rd_map_db, axes=0)
     
     plt.imshow(rd_map_shifted, aspect='auto', cmap='jet',
-               extent=[0, max_range, 
+               extent=[0, range_axis[-1], 
                       -radar_params['max_velocity'], 
                       radar_params['max_velocity']])
     plt.colorbar(label='Power (dB)')
@@ -258,7 +259,7 @@ def test_cfar_detector(doppler_fft_data, output_dir, radar_params):
     plt.ylabel('Velocity (m/s)')
     
     # 显示最大距离信息
-    plt.text(0.98, 0.95, f'Max Range: {max_range:.2f} m',
+    plt.text(0.98, 0.95, f'Max Range: {range_axis[-1]:.2f} m',
             transform=plt.gca().transAxes, ha='right', va='top',
             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
@@ -270,7 +271,7 @@ def test_cfar_detector(doppler_fft_data, output_dir, radar_params):
         plt.subplot(len(cfar_methods)+1, 1, i+2)
         
         plt.imshow(rd_map_shifted, aspect='auto', cmap='jet',
-                  extent=[0, max_range, 
+                  extent=[0, range_axis[-1], 
                          -radar_params['max_velocity'], 
                          radar_params['max_velocity']])
         plt.colorbar(label='Power (dB)')
@@ -288,8 +289,8 @@ def test_cfar_detector(doppler_fft_data, output_dir, radar_params):
             else:
                 velocity = (y - num_doppler_bins // 2) / num_doppler_bins * (2 * radar_params['max_velocity']) - radar_params['max_velocity']
             
-            # 转换距离索引为实际距离 - 使用固定的最大不模糊距离
-            range_val = x / num_range_bins * max_range
+            # 转换距离索引为实际距离 - 使用正确的距离轴
+            range_val = x / num_range_bins * range_axis[-1]
             
             # 所有检测到的目标都应该在最大距离范围内
             velocities.append(velocity)
@@ -465,7 +466,7 @@ def main():
         print(f"  {key}: {value}")
     
     # 指定雷达数据文件路径
-    data_file = "Dataset/Radar_Data/Participant1/0.8m/radar_raw_data.npy"
+    data_file = "Dataset/Radar_Data/Participant1/0.3m/radar_raw_data.npy"
     
     # 加载数据
     radar_data = load_radar_data(data_file)

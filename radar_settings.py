@@ -18,9 +18,9 @@ RADAR_PARAMS = {
     'end_freq': 63.5e9,           # 终止频率 63.5 GHz
     'bandwidth': 5.5e9,           # 带宽 5.5 GHz
     'sample_rate': 2e6,           # 采样率 2 MHz
-    'chirp_time': 0.0002,         # 调频时间 0.2 ms
+    'chirp_time': 0.0004,         # 调频时间 0.4 ms
     'frame_time': 0.0333,         # 帧重复时间 33.3 ms (≈30Hz)
-    'num_samples': 128,           # 每chirp采样点数
+    'num_samples': 512,           # 每chirp采样点数
     'num_chirps': 16,             # 每帧chirp数
     'rx_antennas': 3,             # 接收天线数量
     'tx_antennas': 1,             # 发射天线数量
@@ -28,21 +28,21 @@ RADAR_PARAMS = {
     'aaf_cutoff': 500e3,          # 抗混叠滤波器截止频率 500 kHz
     
     # 计算参数
-    'sweep_slope': 5.5e9 / 0.0002,                       # 调频斜率 2.75e13 Hz/s
+    'sweep_slope': 5.5e9 / 0.0004,                       # 调频斜率 1.375e13 Hz/s
     'center_freq': (58e9 + 63.5e9) / 2,                  # 中心频率 60.75 GHz
     'wavelength': SPEED_OF_LIGHT / ((58e9 + 63.5e9) / 2),# 波长 4.94 mm
     'range_resolution': SPEED_OF_LIGHT / (2 * 5.5e9),    # 距离分辨率 2.7 cm
-    'max_range': 1.7,                                    # 最大不模糊距离 1.7 m
+    'max_range': 2e6 * SPEED_OF_LIGHT / (2 * (5.5e9 / 0.0004)),  # 最大不模糊距离
     'velocity_resolution': 0.771,                        # 速度分辨率 0.771 m/s
     'max_velocity': 6.175,                               # 最大不模糊速度 6.175 m/s
     'min_velocity': 0.049,                               # 最小可检测速度 0.049 m/s
     'frame_rate': 30,                                    # 帧率 30 Hz
-    'frequency_resolution': 2e6 / 128,                   # 频率分辨率 15.625 kHz
+    'frequency_resolution': 2e6 / 512,                   # 频率分辨率 3.90625 kHz
     'doppler_shift_range': 2.5e3,                        # 多普勒频移范围 ±2.5 kHz
 }
 
 # 尝试从配置文件加载参数（如果存在）
-def load_params_from_json(config_file='radar_settings/BGT60TR13C_settings_20250419-134002.json'):
+def load_params_from_json(config_file='radar_settings/BGT60TR13C_settings_20250423-163757.json'):
     """
     从JSON配置文件加载参数
     
@@ -81,7 +81,7 @@ def load_params_from_json(config_file='radar_settings/BGT60TR13C_settings_202504
             params['center_freq'] = (params['start_freq'] + params['end_freq']) / 2
             params['wavelength'] = SPEED_OF_LIGHT / params['center_freq']
             params['range_resolution'] = SPEED_OF_LIGHT / (2 * params['bandwidth'])
-            params['max_range'] = 1.7  # 固定使用1.7米作为最大距离
+            params['max_range'] = params['sample_rate'] * SPEED_OF_LIGHT / (2 * params['sweep_slope'])
             params['velocity_resolution'] = params['wavelength'] / (2 * params['num_chirps'] * params['chirp_time'])
             params['max_velocity'] = params['wavelength'] / (4 * params['chirp_time'])
             params['min_velocity'] = params['hp_cutoff'] * SPEED_OF_LIGHT / (2 * params['center_freq'])
