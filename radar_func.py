@@ -85,42 +85,31 @@ def doppler_fft(range_fft_data, window='hanning', zero_padding_factor=1):
 def mti_filter(data, filter_order=2):
     """
     应用移动目标指示(MTI)滤波器，去除静态杂波
+    使用均值相消法实现MTI
     
     参数:
         data: 形状为(frames, antennas, chirps, samples)的雷达原始数据
-        filter_order: MTI滤波器阶数，默认为2
+        filter_order: 保留参数（为兼容接口），在均值相消实现中不起作用
     
     返回:
         MTI处理后的数据，形状与输入相同
     """
+    # 获取数据维度
     frames, antennas, chirps, samples = data.shape
     
-    # 创建MTI滤波器系数
-    if filter_order == 1:
-        # 一阶MTI，简单的相邻帧差分
-        b = np.array([1, -1])
-    elif filter_order == 2:
-        # 二阶MTI
-        b = np.array([1, -2, 1])
-    elif filter_order == 3:
-        # 三阶MTI
-        b = np.array([1, -3, 3, -1])
-    else:
-        raise ValueError(f"不支持的MTI滤波器阶数: {filter_order}")
-    
-    # 准备输出数组
+    # 使用与原始数据相同类型的空数组初始化结果
     mti_data = np.zeros_like(data)
     
-    # 应用MTI滤波
+    # 分别处理每个天线和chirp，避免一次性分配大量内存
     for a in range(antennas):
         for c in range(chirps):
             for s in range(samples):
-                # 在帧维度上应用滤波器
-                # 使用valid模式避免边缘效应
-                filtered = np.convolve(data[:, a, c, s], b, mode='valid')
-                pad_size = frames - filtered.shape[0]
-                # 填充结果以匹配原始帧数
-                mti_data[pad_size:, a, c, s] = filtered
+                # 提取当前处理的1D时间序列
+                time_series = data[:, a, c, s]
+                # 计算该时间序列的均值
+                mean_val = np.mean(time_series)
+                # 减去均值并存储结果
+                mti_data[:, a, c, s] = time_series - mean_val
     
     return mti_data
 
@@ -514,105 +503,50 @@ def generate_vitals_features(radar_data, distance, fs, window_size=600):
     
     return features
 
-def extract_phase_edacm(fft_data, distance_resolution=None, wavelength=None):
+def extract_phase_edacm(radar_data, range_resolution, wavelength, verbose=False):
     """
-    使用EDACM(Extended Differentiate and Cross Multiply)方法进行相位提取
+    使用能量检测自适应CFAR方法提取目标相位。
     
     参数:
-        fft_data: FFT处理后的雷达数据，形状为(frames, samples)或(frames, 1, 1, samples)
-        distance_resolution: 距离分辨率(米/bin)，如果为None则从radar_settings获取
-        wavelength: 雷达波长(米)，如果为None则从radar_settings获取
+    radar_data: 2D numpy数组，形状为(num_frames, num_range_bins)，雷达距离谱数据
+    range_resolution: float，距离分辨率（米/bin）
+    wavelength: float，雷达波长（米）
+    verbose: bool，是否打印目标信息，默认为False
     
     返回:
-        相位时间序列数据
+    phase_values: 1D numpy数组，目标的相位值
+    target_bin: int，目标的距离bin索引
     """
-    # 从radar_settings获取参数（如果未提供）
-    if distance_resolution is None or wavelength is None:
-        try:
-            import radar_settings
-            params = radar_settings.get_radar_params()
-            if distance_resolution is None:
-                distance_resolution = params.get('range_resolution', 0.027)  # 默认2.7cm
-            if wavelength is None:
-                wavelength = params.get('wavelength', 0.00494)  # 默认4.94mm (60.75GHz)
-        except ImportError:
-            # 如果无法导入radar_settings，使用合理的默认值
-            if distance_resolution is None:
-                distance_resolution = 0.027  # 默认2.7cm
-            if wavelength is None:
-                wavelength = 0.00494  # 默认4.94mm (60.75GHz)
+    num_frames, num_range_bins = radar_data.shape
     
-    # 确保输入数据为2D
-    if len(fft_data.shape) == 4:  # (frames, 1, 1, samples)
-        fft_data = fft_data[:, 0, 0, :]
+    # 设置最小和最大距离范围（米）
+    min_range = 0.2  # 最小为0.2米
+    max_range = 2.0  # 最大为2.0米
     
-    frames, samples = fft_data.shape
+    # 转换为bin索引（确保不使用bin 0，它可能代表DC分量）
+    min_bin = max(1, int(min_range / range_resolution))
+    max_bin = min(num_range_bins - 1, int(max_range / range_resolution))
     
-    # 初始化相位数据
-    phase_data = np.zeros(frames)
+    # 计算距离范围内的平均功率
+    if max_bin > min_bin:
+        # 对整个时间序列计算每个距离bin的平均功率
+        bin_power = np.mean(np.abs(radar_data[:, min_bin:max_bin+1])**2, axis=0)
+        # 找到功率最强的bin作为目标bin
+        target_bin = min_bin + np.argmax(bin_power)
+    else:
+        # 如果范围无效，则使用默认方法（整个距离范围内的最强回波）
+        bin_power = np.mean(np.abs(radar_data)**2, axis=0)
+        target_bin = np.argmax(bin_power)
     
-    # 首先找到最强目标距离bin
-    # 计算每个距离bin的平均功率
-    bin_power = np.mean(np.abs(fft_data) ** 2, axis=0)
-    target_bin = np.argmax(bin_power)
+    # 提取目标bin的时间序列
+    target_signal = radar_data[:, target_bin]
     
-    print(f"检测到目标在距离bin: {target_bin}, 对应距离约: {target_bin * distance_resolution:.2f}m")
+    # 提取相位信息
+    phase_values = np.angle(target_signal)
     
-    # 提取目标bin的复数数据
-    target_data = fft_data[:, target_bin]
+    # 只有当verbose为True时才打印
+    if verbose:
+        target_distance = target_bin * range_resolution
+        print(f"检测到目标：距离bin = {target_bin}，距离 = {target_distance:.2f}米")
     
-    # 实现EDACM算法
-    # 步骤1: 差分 - 计算相邻帧之间的差异
-    diff_data = np.zeros(frames-1, dtype=complex)
-    for i in range(frames-1):
-        diff_data[i] = target_data[i+1] - target_data[i]
-    
-    # 步骤2: 交叉乘法
-    # I[n+1]*Q[n] - I[n]*Q[n+1]
-    # 其中I是实部，Q是虚部
-    cross_product = np.zeros(frames-1)
-    for i in range(frames-1):
-        I_next = target_data[i+1].real
-        Q_next = target_data[i+1].imag
-        I_curr = target_data[i].real
-        Q_curr = target_data[i].imag
-        
-        cross_product[i] = I_next * Q_curr - I_curr * Q_next
-    
-    # 步骤3: EDACM算法扩展部分 - 使用滑动窗口平滑结果
-    window_size = 5  # 可调整的窗口大小
-    smoothed_product = np.zeros(frames-1)
-    
-    for i in range(frames-1):
-        start_idx = max(0, i - window_size // 2)
-        end_idx = min(frames-1, i + window_size // 2 + 1)
-        smoothed_product[i] = np.mean(cross_product[start_idx:end_idx])
-    
-    # 步骤4: 计算相位变化
-    # arctan(交叉乘积 / 点积)
-    dot_product = np.zeros(frames-1)
-    for i in range(frames-1):
-        I_next = target_data[i+1].real
-        Q_next = target_data[i+1].imag
-        I_curr = target_data[i].real
-        Q_curr = target_data[i].imag
-        
-        dot_product[i] = I_next * I_curr + Q_next * Q_curr
-    
-    # 使用相同的窗口大小平滑点积
-    smoothed_dot = np.zeros(frames-1)
-    for i in range(frames-1):
-        start_idx = max(0, i - window_size // 2)
-        end_idx = min(frames-1, i + window_size // 2 + 1)
-        smoothed_dot[i] = np.mean(dot_product[start_idx:end_idx])
-    
-    # 计算每帧的相位变化
-    phase_changes = np.arctan2(smoothed_product, smoothed_dot)
-    
-    # 累积相位变化得到完整相位时间序列
-    # 注意：累积相位的第一个值被设为0，结果长度比原始帧数少1
-    cumulative_phase = np.zeros(frames)
-    cumulative_phase[1:] = np.cumsum(phase_changes)
-    
-    # 返回累积相位数据
-    return cumulative_phase 
+    return phase_values, target_bin 

@@ -48,6 +48,17 @@ try:
 except Exception as e:
     print(f"设置中文字体时出错: {e}")
 
+# 添加均值相消法MTI函数
+def MTI_avg(fft_data: np.ndarray, axis: int = 0) -> np.ndarray:
+    """
+    静态杂波滤除:MTI(Moving Targets Indication 动目标显示)均值相消法
+    :param fft_data: 原始数据
+    :param axis: axis 0 时计算每列的均值，进行均值相消
+    :return: 返回降噪后的数据
+    """
+    fft_data_denoise = fft_data.copy()  # 深拷贝数组，否则传递的是指针
+    return fft_data_denoise - np.mean(fft_data_denoise, axis=axis)
+
 class RadarReplayApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -100,11 +111,22 @@ class RadarReplayApp(QMainWindow):
         # 创建matplotlib图形
         self.figure = Figure(figsize=(10, 5), dpi=100)
         self.canvas = FigureCanvas(self.figure)
-        self.ax = self.figure.add_subplot(111)
-        self.ax.set_title('雷达回波Range-FFT')
-        self.ax.set_xlabel('距离 (m)')
-        self.ax.set_ylabel('功率 (dB)')
-        self.ax.grid(True)
+        
+        # 创建两个子图，一个用于原始数据，一个用于MTI数据
+        self.ax1 = self.figure.add_subplot(211)  # 上半部分显示原始数据
+        self.ax1.set_title('原始雷达回波Range-FFT')
+        self.ax1.set_xlabel('距离 (m)')
+        self.ax1.set_ylabel('功率 (dB)')
+        self.ax1.grid(True)
+        
+        self.ax2 = self.figure.add_subplot(212)  # 下半部分显示MTI数据
+        self.ax2.set_title('MTI处理后雷达回波Range-FFT')
+        self.ax2.set_xlabel('距离 (m)')
+        self.ax2.set_ylabel('功率 (dB)')
+        self.ax2.grid(True)
+        
+        # 调整子图间距
+        self.figure.tight_layout(pad=3.0)
         
         # 添加到布局
         parent_layout.addWidget(self.canvas, 1)
@@ -175,6 +197,20 @@ class RadarReplayApp(QMainWindow):
         self.window_combo.addItems(["hanning", "hamming", "blackman", "rectangular"])
         self.window_combo.currentTextChanged.connect(self.update_plot)
         display_layout.addWidget(self.window_combo)
+        
+        # 添加MTI帧数设置
+        display_layout.addWidget(QLabel("MTI帧数:"))
+        self.mti_frames_spinbox = QSpinBox()
+        self.mti_frames_spinbox.setRange(2, 50)  # 最少需要2帧，最多50帧
+        self.mti_frames_spinbox.setValue(30)     # 默认使用30帧
+        self.mti_frames_spinbox.valueChanged.connect(self.update_plot)
+        display_layout.addWidget(self.mti_frames_spinbox)
+        
+        # 添加是否显示MTI复选框
+        self.show_mti_checkbox = QCheckBox("显示MTI")
+        self.show_mti_checkbox.setChecked(True)  # 默认显示MTI
+        self.show_mti_checkbox.stateChanged.connect(self.toggle_mti_display)
+        display_layout.addWidget(self.show_mti_checkbox)
         
         # 添加X轴范围设置
         display_layout.addWidget(QLabel("X轴范围(m):"))
@@ -287,6 +323,22 @@ class RadarReplayApp(QMainWindow):
         """更新帧标签显示"""
         self.frame_label.setText(f"{self.current_frame + 1}/{self.frame_count}")
     
+    def toggle_mti_display(self):
+        """切换MTI显示状态"""
+        if self.show_mti_checkbox.isChecked():
+            # 显示MTI子图
+            self.ax2.set_visible(True)
+        else:
+            # 隐藏MTI子图
+            self.ax2.set_visible(False)
+        
+        # 调整图形布局
+        self.figure.tight_layout(pad=3.0)
+        self.canvas.draw()
+        
+        # 更新图形
+        self.update_plot()
+    
     def update_plot(self):
         """更新绘图"""
         if self.radar_data is None:
@@ -304,7 +356,8 @@ class RadarReplayApp(QMainWindow):
             self.update_frame_label()
         
         # 清除当前图形
-        self.ax.clear()
+        self.ax1.clear()
+        self.ax2.clear()
         
         # 获取当前帧数据
         frame_data = self.radar_data[self.current_frame:self.current_frame+1]
@@ -312,6 +365,44 @@ class RadarReplayApp(QMainWindow):
         # 执行Range-FFT
         window_type = self.window_combo.currentText()
         range_fft_data = self.calculate_range_fft(frame_data, window=window_type)
+        
+        # 执行均值相消法MTI
+        # 获取用户设置的帧数
+        max_frames = self.mti_frames_spinbox.value()
+        # 根据可用帧数决定MTI处理范围
+        start_frame = max(0, self.current_frame - max_frames // 2)
+        end_frame = min(self.frame_count, start_frame + max_frames)
+        
+        # 确保至少有2帧进行均值相消
+        if end_frame - start_frame < 2:
+            if start_frame > 0:
+                start_frame -= 1
+            elif end_frame < self.frame_count:
+                end_frame += 1
+        
+        # 读取多帧数据计算均值相消
+        mti_input_data = self.radar_data[start_frame:end_frame]
+        
+        # 如果只有一帧，无法执行MTI
+        if len(mti_input_data) <= 1:
+            self.statusBar().showMessage("警告: 数据帧数不足，无法执行MTI均值相消")
+            mti_range_fft_data = range_fft_data.copy()
+        else:
+            # 执行Range-FFT
+            mti_input_range_fft = self.calculate_range_fft(mti_input_data, window=window_type)
+            
+            # 使用均值相消法MTI
+            mti_range_fft_data = MTI_avg(mti_input_range_fft, axis=0)
+            
+            # 如果当前帧在处理范围内，选择对应帧的MTI结果
+            frame_index = self.current_frame - start_frame
+            if 0 <= frame_index < len(mti_range_fft_data):
+                mti_range_fft_data = mti_range_fft_data[frame_index:frame_index+1]
+            else:
+                # 否则使用最后一帧的结果
+                mti_range_fft_data = mti_range_fft_data[-1:]
+                
+            self.statusBar().showMessage(f"使用均值相消法MTI，帧范围: {start_frame+1}-{end_frame}，总计{end_frame-start_frame}帧")
         
         # 获取选中的天线索引
         antenna_index = self.antenna_combo.currentIndex() - 1  # -1是因为第一项是"所有天线"
@@ -321,10 +412,22 @@ class RadarReplayApp(QMainWindow):
             # 如果选择"所有天线"，计算所有天线的平均值
             range_profile = np.mean(np.abs(range_fft_data[0]), axis=(0, 1))
             title_suffix = f'(所有天线)'
+            
+            # 也计算MTI后的功率谱
+            if len(mti_range_fft_data) > 0:
+                mti_range_profile = np.mean(np.abs(mti_range_fft_data[-1]), axis=(0, 1))
+            else:
+                mti_range_profile = range_profile.copy()  # 如果MTI没有结果，使用原始数据
         else:
             # 使用选定的天线，仍然需要在chirp维度上平均
             range_profile = np.mean(np.abs(range_fft_data[0, antenna_index]), axis=0)
             title_suffix = f'(天线 {antenna_index+1})'
+            
+            # 也计算MTI后的功率谱
+            if len(mti_range_fft_data) > 0:
+                mti_range_profile = np.mean(np.abs(mti_range_fft_data[-1, antenna_index]), axis=0)
+            else:
+                mti_range_profile = range_profile.copy()  # 如果MTI没有结果，使用原始数据
         
         # 只显示一半的FFT（由于对称性）
         half_len = len(range_profile) // 2
@@ -332,15 +435,21 @@ class RadarReplayApp(QMainWindow):
         # 计算距离轴
         range_axis = self.calculate_range_axis(half_len)
         
-        # 使用幅度值（不转换为dB）
+        # 使用幅度值绘制原始数据
         magnitude = range_profile[:half_len]
+        self.ax1.plot(range_axis, magnitude)
+        self.ax1.set_title(f'原始Range-FFT {title_suffix} (帧 {self.current_frame + 1}/{self.frame_count})')
+        self.ax1.set_xlabel('距离 (m)')
+        self.ax1.set_ylabel('幅度 (Magnitude)')
+        self.ax1.grid(True)
         
-        # 绘制图形
-        self.ax.plot(range_axis, magnitude)
-        self.ax.set_title(f'Range-FFT {title_suffix} (帧 {self.current_frame + 1}/{self.frame_count})')
-        self.ax.set_xlabel('距离 (m)')
-        self.ax.set_ylabel('幅度 (Magnitude)')
-        self.ax.grid(True)
+        # 使用幅度值绘制MTI数据
+        mti_magnitude = mti_range_profile[:half_len]
+        self.ax2.plot(range_axis, mti_magnitude)
+        self.ax2.set_title(f'MTI处理后Range-FFT {title_suffix} (均值相消法)')
+        self.ax2.set_xlabel('距离 (m)')
+        self.ax2.set_ylabel('幅度 (Magnitude)')
+        self.ax2.grid(True)
         
         # 获取用户设置的Y轴上限和X轴范围
         y_max = self.y_max_spinbox.value()
@@ -349,19 +458,28 @@ class RadarReplayApp(QMainWindow):
         # 计算实际可见距离范围（基于用户设置和实际计算出的最大距离）
         max_calculated_range = np.max(range_axis)  # 基于FFT点数和距离分辨率计算出的最大距离
         
-        # 使用用户设置的X轴范围
-        self.ax.set_xlim(0, user_x_max)  # X轴范围为0到用户设置的最大距离
-        self.ax.set_ylim(0, y_max)  # Y轴使用用户设置的上限值
+        # 设置两个子图的x轴和y轴范围一致
+        self.ax1.set_xlim(0, user_x_max)  # X轴范围为0到用户设置的最大距离
+        self.ax1.set_ylim(0, y_max)  # Y轴使用用户设置的上限值
+        
+        self.ax2.set_xlim(0, user_x_max)  # X轴范围为0到用户设置的最大距离
+        self.ax2.set_ylim(0, y_max)  # Y轴使用用户设置的上限值
         
         # 添加文本注释显示理论最大距离和实际计算距离
         max_range = self.radar_params['max_range']
         range_resolution = self.radar_params['range_resolution']
-        self.ax.text(0.98, 0.95, 
+        self.ax1.text(0.98, 0.95, 
                  f'理论最大距离: {max_range:.2f} m\n'
                  f'计算最大距离: {max_calculated_range:.2f} m\n'
                  f'距离分辨率: {range_resolution:.3f} m',
-                 transform=self.ax.transAxes, ha='right', va='top',
+                 transform=self.ax1.transAxes, ha='right', va='top',
                  bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+        
+        # 根据复选框状态显示或隐藏MTI子图
+        self.ax2.set_visible(self.show_mti_checkbox.isChecked())
+        
+        # 调整图形布局
+        self.figure.tight_layout(pad=3.0)
         
         # 更新canvas
         self.canvas.draw()
