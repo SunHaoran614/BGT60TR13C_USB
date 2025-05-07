@@ -1,0 +1,16 @@
+模型: InceptionTime_VMD_best.keras
+分解方法: EEMD
+MAE: 8.2688 BPM
+RMSE: 10.2615 BPM
+R²: -1.7864
+MAPE: 11.89%
+最大误差: 42.7571 BPM
+中位误差: 7.2943 BPM
+误差标准差: 9.0822
+95%置信区间: [-22.80, 12.68] BPM
+±3 BPM准确率: 20.35%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 6.4270 BPM
+正常心率(70-90 BPM) MAE: 8.9521 BPM
+高心率(>90 BPM) MAE: nan BPM

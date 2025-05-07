@@ -1,0 +1,15 @@
+Ö¸±ê,Öµ
+mae,69.492683
+mse,4867.123047
+rmse,69.764769
+r2,-127.792038
+mape,100.267208
+max_error,77.009068
+median_error,73.048245
+error_std,6.155460
+ci_95_lower,-73.740981
+ci_95_upper,-58.031328
+accuracy_3bpm,0.000000
+mae_low_hr,59.523044
+mae_normal_hr,73.191571
+mae_high_hr,nan

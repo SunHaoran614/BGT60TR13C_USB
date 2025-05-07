@@ -164,4 +164,181 @@ python run_inference.py --model models/CNN_GRU_EEMD_best.h5 --data test_data.npy
 
 ## 联系方式
 
-如有问题或建议，请提交issue或联系项目维护者。 
+如有问题或建议，请提交issue或联系项目维护者。
+
+# 雷达心率预测模型代码优化与错误修复
+
+本文档总结了对雷达心率预测模型代码的主要优化和错误修复。
+
+## 批次大小(BATCH_SIZE)优化
+
+当前设置的批次大小为32，这是一个合理的选择，原因如下：
+
+- **训练稳定性**：批次大小32提供了良好的梯度估计准确性，有助于训练的稳定性
+- **泛化能力**：相比更大的批次大小，32的批次大小有助于模型跳出局部最小值，提高泛化能力
+- **计算资源平衡**：在多数硬件上能够高效利用GPU内存而不会导致内存溢出
+- **训练速度**：提供了训练速度与收敛效率的良好平衡
+
+对于此类时序数据分析，32的批次大小通常能在训练效率和模型性能之间取得平衡。
+
+## TensorFlow/Keras版本兼容性修复
+
+### 1. Adam优化器学习率访问方式
+
+修复了不同TensorFlow版本中Adam优化器学习率属性访问方式的差异：
+
+```python
+# 获取最终学习率的健壮实现
+try:
+    # 新版TensorFlow使用learning_rate属性
+    if hasattr(model.optimizer, 'learning_rate'):
+        final_lr = float(tf.keras.backend.get_value(model.optimizer.learning_rate))
+    # 旧版TensorFlow使用lr属性
+    elif hasattr(model.optimizer, 'lr'):
+        final_lr = float(tf.keras.backend.get_value(model.optimizer.lr))
+    # 备选方案
+    elif hasattr(model.optimizer, '_decayed_lr'):
+        final_lr = float(model.optimizer._decayed_lr(tf.float32).numpy())
+    else:
+        final_lr = 0.0  # 无法获取时设置默认值
+except:
+    final_lr = 0.0  # 捕获任何可能的异常并提供默认值
+```
+
+### 2. 修复模型加载"Could not locate function 'mse'"错误
+
+在`radar_model_evaluator.py`中实现了多种模型加载策略和自定义对象映射：
+
+```python
+# 创建健壮的自定义对象映射，适应不同版本的TensorFlow
+custom_objects = {}
+
+# 尝试添加不同版本TensorFlow中可能存在的损失函数
+try:
+    # 尝试2.x版本风格
+    custom_objects['mse'] = tf.keras.losses.MeanSquaredError()
+    custom_objects['mae'] = tf.keras.losses.MeanAbsoluteError()
+    # ...
+except:
+    pass
+
+try:
+    # 尝试函数式API
+    from tensorflow.keras.losses import mse, mae
+    custom_objects['mse'] = mse
+    custom_objects['mae'] = mae
+    # ...
+except:
+    pass
+
+# 添加备用函数定义以防上述尝试都失败
+if 'mse' not in custom_objects:
+    def mse_func(y_true, y_pred):
+        return tf.reduce_mean(tf.square(y_true - y_pred))
+    # ...
+```
+
+### 3. 修复K.clear_session()不可用问题
+
+实现了多层次的会话清理机制以确保内存正确释放：
+
+```python
+# 清除会话以释放内存
+try:
+    # 尝试方法1：使用导入的K
+    K.clear_session()
+except Exception as e:
+    print(f"使用K.clear_session()失败: {e}")
+    try:
+        # 尝试方法2：使用tf.keras.backend
+        tf.keras.backend.clear_session()
+    except Exception as e2:
+        print(f"使用tf.keras.backend.clear_session()失败: {e2}")
+        try:
+            # 尝试方法3：使用global tensorflow重置
+            import tensorflow as tf
+            tf.compat.v1.reset_default_graph()
+            print("使用tf.compat.v1.reset_default_graph()代替")
+        except Exception as e3:
+            print(f"清理会话失败，但继续执行: {e3}")
+```
+
+### 4. 替换系统临时目录使用，解决权限错误
+
+避免使用系统临时目录，改为使用项目目录下的自定义目录：
+
+```python
+# 计算模型大小（MB）- 使用自定义目录避免权限问题
+try:
+    temp_model_path = os.path.join(temp_model_dir, f"{model_name}_temp.h5")
+    model.save(temp_model_path)
+    if os.path.exists(temp_model_path):
+        model_size_mb = os.path.getsize(temp_model_path) / (1024 * 1024)
+        # 清理临时文件
+        try:
+            os.remove(temp_model_path)
+        except:
+            pass  # 忽略删除失败
+    # ...
+```
+
+## 模型评估工具整合
+
+将`evaluate_model.py`和`evaluate_models.py`合并成统一的`radar_model_evaluator.py`，添加了三种评估模式：
+
+1. **单模型评估(single)**：详细评估单个模型性能
+2. **批量评估(batch)**：批量评估多个模型并生成比较报告
+3. **快速验证(quick)**：快速验证单个模型的基本性能
+
+```bash
+# 使用示例
+python radar_model_evaluator.py --mode single --model_path trained_models/CNN_GRU_EEMD_best.h5
+python radar_model_evaluator.py --mode batch --models CNN_GRU BiLSTM
+python radar_model_evaluator.py --mode quick --model_path trained_models/CNN_GRU_EEMD_best.h5
+```
+
+## Matplotlib字体处理优化
+
+增强了matplotlib字体处理功能，解决中文显示和特殊符号(如R²)的兼容性问题：
+
+```python
+# 添加健壮的matplotlib字体处理
+try:
+    # 检查字体是否存在
+    from matplotlib.font_manager import FontProperties
+    font_exists = False
+    for font in ['SimHei', 'Microsoft YaHei', 'SimSun']:
+        try:
+            FontProperties(fname=font)
+            font_exists = True
+            break
+        except:
+            continue
+    
+    # 如果找不到中文字体，使用系统默认字体
+    if not font_exists:
+        print("警告: 未找到中文字体，将使用系统默认字体")
+        matplotlib.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans']
+    else:
+        matplotlib.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'SimSun', 'Arial Unicode MS', 'DejaVu Sans']
+    
+    matplotlib.rcParams['axes.unicode_minus'] = False
+    matplotlib.rcParams['font.family'] = 'sans-serif'
+except Exception as e:
+    print(f"设置matplotlib字体时出错: {e}")
+    print("将使用默认字体，某些中文可能无法正确显示")
+```
+
+对于特殊符号（如R²）的显示也添加了兼容处理：
+
+```python
+# 使用特殊符号的安全表示法
+try:
+    r2_text = "R\u00B2"  # 使用Unicode字符U+00B2表示²
+except:
+    r2_text = "R²"  # 直接使用²字符，可能在某些环境不显示
+```
+
+## 总结
+
+所有修改都增加了错误处理机制，确保即使某些操作失败，程序也能继续执行，提高了代码在不同环境下的稳定性和兼容性。此外，整合的评估工具提供了更灵活的模型性能分析方式，支持快速验证、详细分析和批量比较等多种需求。 

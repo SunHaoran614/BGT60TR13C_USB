@@ -1,0 +1,16 @@
+模型: MultiscaleLSTM_VMD_best.keras
+分解方法: EEMD
+MAE: 5.5038 BPM
+RMSE: 6.6856 BPM
+R²: -0.1828
+MAPE: 8.37%
+最大误差: 15.6468 BPM
+中位误差: 3.0820 BPM
+误差标准差: 6.6680
+95%置信区间: [-9.74, 12.73] BPM
+±3 BPM准确率: 47.89%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 9.3107 BPM
+正常心率(70-90 BPM) MAE: 4.0914 BPM
+高心率(>90 BPM) MAE: nan BPM

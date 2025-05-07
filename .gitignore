@@ -1,6 +1,10 @@
 # 忽略Dataset文件夹及其所有内容
 Dataset/
 training_data/
+logs/
+test_models/
+trained_models/
+training_data/
 
 # 通用Python忽略项
 __pycache__/

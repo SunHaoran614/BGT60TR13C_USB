@@ -1,0 +1,16 @@
+模型: AttentionLSTM_EEMD_best
+分解方法: EEMD
+MAE: 6.0409 BPM
+RMSE: 6.3250 BPM
+R²: -0.0586
+MAPE: 8.98%
+最大误差: 12.3356 BPM
+中位误差: 5.9896 BPM
+误差标准差: 6.0719
+95%置信区间: [-6.44, 10.31] BPM
+±3 BPM准确率: 1.16%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 7.8973 BPM
+正常心率(70-90 BPM) MAE: 5.3522 BPM
+高心率(>90 BPM) MAE: nan BPM

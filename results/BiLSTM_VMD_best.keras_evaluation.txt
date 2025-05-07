@@ -1,0 +1,16 @@
+模型: BiLSTM_VMD_best.keras
+分解方法: EEMD
+MAE: 4.8118 BPM
+RMSE: 7.0143 BPM
+R²: -0.3019
+MAPE: 7.58%
+最大误差: 26.1713 BPM
+中位误差: 2.0588 BPM
+误差标准差: 6.9391
+95%置信区间: [-12.21, 13.97] BPM
+±3 BPM准确率: 63.64%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 11.2046 BPM
+正常心率(70-90 BPM) MAE: 2.4400 BPM
+高心率(>90 BPM) MAE: nan BPM

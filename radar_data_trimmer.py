@@ -2,21 +2,9 @@ import numpy as np
 import os
 import argparse
 import datetime
-import re
 import json
 from pathlib import Path
 import radar_settings  # 导入雷达设置模块
-
-def extract_timestamp(folder_name):
-    """从文件夹名称中提取时间戳"""
-    pattern = r'BGT60TR13C_record_(\d{8}-\d{6})_'
-    match = re.search(pattern, folder_name)
-    if match:
-        timestamp_str = match.group(1)
-        # 格式: 'YYYYMMDD-HHMMSS'
-        # 返回naive datetime对象（不带时区信息）
-        return datetime.datetime.strptime(timestamp_str, '%Y%m%d-%H%M%S')
-    return None
 
 def get_radar_npy_path(folder_path):
     """获取雷达数据文件的路径"""
@@ -55,7 +43,7 @@ def load_config_file(folder_path):
     except Exception as e:
         print(f"从radar_settings模块加载参数时出错: {e}")
     
-    # 如果无法从模块获取，尝试从配置文件获取
+    # 如果无法从radar_settings模块获取，尝试从配置文件获取
     # 尝试加载RadarIfxAvian_00下的config.json
     config_file = os.path.join(folder_path, 'RadarIfxAvian_00', 'config.json')
     if os.path.isfile(config_file):
@@ -70,19 +58,6 @@ def load_config_file(folder_path):
                         return frame_rate
         except Exception as e:
             print(f"读取配置文件出错: {e}")
-    
-    # 尝试加载根目录下的meta.json
-    meta_file = os.path.join(folder_path, 'meta.json')
-    if os.path.isfile(meta_file):
-        try:
-            with open(meta_file, 'r') as f:
-                meta = json.load(f)
-                if 'frame_rate_hz' in meta:
-                    frame_rate = meta['frame_rate_hz']
-                    print(f"从meta.json加载帧率: {frame_rate} Hz")
-                    return frame_rate
-        except Exception as e:
-            print(f"读取meta文件出错: {e}")
     
     # 如果无法找到确切的帧率，返回默认值
     print("无法从配置文件获取帧率，将使用默认帧率(30Hz)")
@@ -178,8 +153,6 @@ def main():
     parser.add_argument('--start_time', type=str, help='裁剪开始时间(格式: YYYY-MM-DD HH:MM:SS)')
     parser.add_argument('--end_time', type=str, help='裁剪结束时间(格式: YYYY-MM-DD HH:MM:SS)')
     parser.add_argument('--frame_count', type=int, help='从开始时间起要裁剪的帧数量')
-    parser.add_argument('--use_folder_time', action='store_true', help='是否使用文件夹名或meta.json中的时间作为开始时间')
-    parser.add_argument('--use_meta_time', action='store_true', help='优先使用meta.json中的时间（默认已启用）')
     
     args = parser.parse_args()
     
@@ -201,30 +174,19 @@ def main():
         # 获取记录开始时间
         record_start_time = None
         
-        # 先尝试从meta.json获取数据实际开始记录的时间
+        # 从meta.json获取数据实际开始记录的时间
         meta_start_time = get_start_time_from_meta(args.input_folder)
         if meta_start_time:
             record_start_time = meta_start_time
             print(f"从meta.json获取的开始时间: {record_start_time}")
         else:
-            # 如果无法从meta.json获取，尝试从文件夹名称获取
-            folder_name = os.path.basename(args.input_folder.rstrip('/\\'))
-            folder_time = extract_timestamp(folder_name)
-            if folder_time:
-                record_start_time = folder_time
-                print(f"从文件夹名提取的开始时间: {record_start_time}")
-            elif args.start_time and args.use_folder_time:
-                # 如果用户强制使用提供的时间作为记录开始时间
-                record_start_time = datetime.datetime.strptime(args.start_time, '%Y-%m-%d %H:%M:%S')
-                print(f"使用用户指定的时间作为记录开始时间: {record_start_time}")
-            else:
-                print("错误: 无法确定记录开始时间。请检查meta.json或文件夹名，或使用--use_folder_time并指定--start_time。")
-                return
+            print("错误: 无法从meta.json获取记录开始时间。请确保meta.json文件存在且包含date_captured字段。")
+            return
         
         # 解析裁剪时间范围
         trim_start_time = None
-        if args.start_time and not args.use_folder_time:
-            # 如果用户指定了裁剪开始时间且不作为记录开始时间
+        if args.start_time:
+            # 如果用户指定了裁剪开始时间
             trim_start_time = datetime.datetime.strptime(args.start_time, '%Y-%m-%d %H:%M:%S')
             print(f"使用用户指定的裁剪开始时间: {trim_start_time}")
         else:

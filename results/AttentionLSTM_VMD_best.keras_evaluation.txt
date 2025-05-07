@@ -1,0 +1,16 @@
+模型: AttentionLSTM_VMD_best.keras
+分解方法: EEMD
+MAE: 6.5437 BPM
+RMSE: 6.7830 BPM
+R²: -0.2175
+MAPE: 9.58%
+最大误差: 12.4105 BPM
+中位误差: 6.8372 BPM
+误差标准差: 6.1789
+95%置信区间: [-8.23, 9.97] BPM
+±3 BPM准确率: 3.70%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 6.9480 BPM
+正常心率(70-90 BPM) MAE: 6.3937 BPM
+高心率(>90 BPM) MAE: nan BPM

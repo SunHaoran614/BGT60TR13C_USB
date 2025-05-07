@@ -1,0 +1,16 @@
+模型: DeepStateSpace_VMD_best
+分解方法: VMD
+MAE: 3.2450 BPM
+RMSE: 5.4094 BPM
+R²: 0.2257
+MAPE: 4.89%
+最大误差: 19.0594 BPM
+中位误差: 1.6398 BPM
+误差标准差: 5.2105
+95%置信区间: [-13.74, 16.19] BPM
+±3 BPM准确率: 83.67%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 5.2345 BPM
+正常心率(70-90 BPM) MAE: 2.5069 BPM
+高心率(>90 BPM) MAE: nan BPM

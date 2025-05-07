@@ -1,0 +1,16 @@
+模型: CNN_LSTM_VMD_best.keras
+分解方法: EEMD
+MAE: 4.4845 BPM
+RMSE: 6.7763 BPM
+R²: -0.2151
+MAPE: 7.14%
+最大误差: 17.5422 BPM
+中位误差: 1.6671 BPM
+误差标准差: 6.5877
+95%置信区间: [-10.83, 14.53] BPM
+±3 BPM准确率: 63.74%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 11.2603 BPM
+正常心率(70-90 BPM) MAE: 1.9706 BPM
+高心率(>90 BPM) MAE: nan BPM

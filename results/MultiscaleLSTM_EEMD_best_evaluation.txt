@@ -1,0 +1,16 @@
+模型: MultiscaleLSTM_EEMD_best
+分解方法: EEMD
+MAE: 5.5567 BPM
+RMSE: 6.0906 BPM
+R²: 0.0184
+MAPE: 8.37%
+最大误差: 13.9488 BPM
+中位误差: 5.5128 BPM
+误差标准差: 6.0167
+95%置信区间: [-6.11, 10.98] BPM
+±3 BPM准确率: 16.70%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 8.5247 BPM
+正常心率(70-90 BPM) MAE: 4.4555 BPM
+高心率(>90 BPM) MAE: nan BPM

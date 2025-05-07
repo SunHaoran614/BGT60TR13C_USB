@@ -1,0 +1,16 @@
+模型: N-Beats_EEMD_best_rebuilt.keras
+分解方法: EEMD
+MAE: 4.9654 BPM
+RMSE: 6.9525 BPM
+R²: -0.2791
+MAPE: 7.73%
+最大误差: 18.1933 BPM
+中位误差: 3.0010 BPM
+误差标准差: 6.8821
+95%置信区间: [-11.49, 15.16] BPM
+±3 BPM准确率: 50.00%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 10.5138 BPM
+正常心率(70-90 BPM) MAE: 2.9069 BPM
+高心率(>90 BPM) MAE: nan BPM

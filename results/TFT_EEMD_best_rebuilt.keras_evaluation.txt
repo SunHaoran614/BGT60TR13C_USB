@@ -1,0 +1,16 @@
+模型: TFT_EEMD_best_rebuilt.keras
+分解方法: EEMD
+MAE: 2.1900 BPM
+RMSE: 4.2631 BPM
+R²: 0.5191
+MAPE: 3.33%
+最大误差: 16.5655 BPM
+中位误差: 0.7984 BPM
+误差标准差: 4.2507
+95%置信区间: [-12.38, 12.66] BPM
+±3 BPM准确率: 84.41%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 3.9404 BPM
+正常心率(70-90 BPM) MAE: 1.5406 BPM
+高心率(>90 BPM) MAE: nan BPM

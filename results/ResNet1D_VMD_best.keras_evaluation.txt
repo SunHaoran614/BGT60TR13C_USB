@@ -1,0 +1,16 @@
+模型: ResNet1D_VMD_best.keras
+分解方法: EEMD
+MAE: 5.2379 BPM
+RMSE: 6.8213 BPM
+R²: -0.2313
+MAPE: 7.93%
+最大误差: 19.6592 BPM
+中位误差: 4.1169 BPM
+误差标准差: 6.7936
+95%置信区间: [-12.24, 14.17] BPM
+±3 BPM准确率: 41.65%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 8.4692 BPM
+正常心率(70-90 BPM) MAE: 4.0390 BPM
+高心率(>90 BPM) MAE: nan BPM

@@ -1,0 +1,16 @@
+模型: DeepStateSpace_EEMD_best
+分解方法: EEMD
+MAE: 2.3153 BPM
+RMSE: 3.7938 BPM
+R²: 0.6191
+MAPE: 3.45%
+最大误差: 19.4798 BPM
+中位误差: 1.6627 BPM
+误差标准差: 3.4321
+95%置信区间: [-2.70, 13.68] BPM
+±3 BPM准确率: 91.33%
+
+不同心率区间性能:
+低心率(<70 BPM) MAE: 3.3887 BPM
+正常心率(70-90 BPM) MAE: 1.9170 BPM
+高心率(>90 BPM) MAE: nan BPM

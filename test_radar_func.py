@@ -310,96 +310,6 @@ def test_cfar_detector(doppler_fft_data, output_dir, radar_params):
     except Exception as e:
         print(f"保存图像时出错: {e}")
 
-def test_edacm_detector(doppler_fft_data, output_dir, radar_params):
-    """测试EDACM探测器"""
-    print("\n测试EDACM探测器...")
-    
-    # 获取单一帧单一天线的距离-多普勒图
-    rd_map = np.abs(doppler_fft_data[0, 0])
-    
-    # 使用固定的最大距离
-    max_range = radar_params['max_range']  # 1.7m
-    
-    # 计算距离轴
-    num_range_bins = rd_map.shape[1]
-    range_axis = np.linspace(0, max_range, num_range_bins)
-    
-    # 计算速度轴（米/秒）
-    num_doppler_bins = rd_map.shape[0]
-    
-    # 测试不同的EDACM参数
-    thresholds = [10, 13, 16]
-    
-    plt.figure(figsize=(15, 5*len(thresholds)))
-    
-    # 原始距离-多普勒图
-    plt.subplot(len(thresholds)+1, 1, 1)
-    rd_map_db = 20 * np.log10(rd_map + 1e-10)
-    
-    # 重新排列多普勒轴，使零速度在中间
-    rd_map_shifted = np.fft.fftshift(rd_map_db, axes=0)
-    
-    plt.imshow(rd_map_shifted, aspect='auto', cmap='jet',
-               extent=[0, max_range, 
-                      -radar_params['max_velocity'], 
-                      radar_params['max_velocity']])
-    plt.colorbar(label='Power (dB)')
-    plt.title('Original Range-Doppler Map')
-    plt.xlabel('Range (m)')
-    plt.ylabel('Velocity (m/s)')
-    
-    # 显示最大距离信息
-    plt.text(0.98, 0.95, f'Max Range: {max_range:.2f} m',
-            transform=plt.gca().transAxes, ha='right', va='top',
-            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-    
-    # 应用不同阈值的EDACM
-    for i, threshold in enumerate(thresholds):
-        detections = rf.edacm_detector(rd_map, window_size=16, threshold_snr=threshold, guard_cells=4)
-        
-        # 标记检测结果
-        plt.subplot(len(thresholds)+1, 1, i+2)
-        
-        plt.imshow(rd_map_shifted, aspect='auto', cmap='jet',
-                  extent=[0, max_range, 
-                         -radar_params['max_velocity'], 
-                         radar_params['max_velocity']])
-        plt.colorbar(label='Power (dB)')
-        
-        # 在检测位置上叠加标记
-        y_indices, x_indices = np.where(detections)
-        
-        # 转换为实际距离和速度
-        velocities = []
-        ranges = []
-        for y, x in zip(y_indices, x_indices):
-            # 转换多普勒索引为速度，考虑零速度在中间
-            if y < num_doppler_bins // 2:
-                velocity = (y + num_doppler_bins // 2) / num_doppler_bins * (2 * radar_params['max_velocity']) - radar_params['max_velocity']
-            else:
-                velocity = (y - num_doppler_bins // 2) / num_doppler_bins * (2 * radar_params['max_velocity']) - radar_params['max_velocity']
-            
-            # 转换距离索引为实际距离 - 使用固定的最大距离
-            range_val = x / num_range_bins * max_range
-            
-            # 所有检测到的目标都应该在显示范围内
-            velocities.append(velocity)
-            ranges.append(range_val)
-        
-        plt.scatter(ranges, velocities, color='r', s=10, marker='x')
-        
-        plt.title(f'EDACM Detection Result (Threshold={threshold} dB)')
-        plt.xlabel('Range (m)')
-        plt.ylabel('Velocity (m/s)')
-    
-    plt.tight_layout()
-    try:
-        output_file = os.path.join(output_dir, 'edacm_test.png')
-        plt.savefig(output_file)
-        print(f"EDACM探测器测试完成，结果已保存到'{output_file}'")
-    except Exception as e:
-        print(f"保存图像时出错: {e}")
-
 def test_visualization(doppler_fft_data, output_dir, radar_params):
     """测试可视化函数"""
     print("\n测试距离-多普勒图可视化...")
@@ -481,7 +391,6 @@ def main():
         doppler_fft_data = test_doppler_fft(range_fft_data, output_dir_abs, radar_params)
         mti_data = test_mti_filter(radar_data, output_dir_abs)
         test_cfar_detector(doppler_fft_data, output_dir_abs, radar_params)
-        test_edacm_detector(doppler_fft_data, output_dir_abs, radar_params)
         test_visualization(doppler_fft_data, output_dir_abs, radar_params)
         
         print(f"\n所有测试完成！结果已保存到 {output_dir_abs} 目录")
